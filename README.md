@@ -1,297 +1,456 @@
-# CrisisGrid
+# ResQNet
 
-An AI-assisted emergency operations platform connecting citizens, an emergency
-operations center (EOC), and rescue teams on one real-time map — built on the
-**MERN stack** (MongoDB, Express, React, Node.js).
+A real-time emergency response platform built with the MERN stack.
 
-This is a deliberately **scoped-down** version of a much larger original spec
-(see `docs/original-specs/` for the full vision). Rather than half-build eight
-portals and a dozen features, this delivers three roles and a focused feature
-set completely, so it's honest, demoable, and defensible in an interview.
-The "Roadmap / What I'd Build Next" section below lists what was cut and why —
-that's a feature for an interview, not a gap, because it shows you understand
-scope and tradeoffs.
+ResQNet connects citizens, emergency control teams, rescue teams, hospitals, and shelters through a single platform. Citizens can report incidents, emergency teams can monitor and manage them, and facility information can be updated in real time.
 
-📄 **[Full project documentation (PDF)](docs/CrisisGrid_Project_Documentation.pdf)** —
-every feature explained (what it does + how it's built), a site navigation
-guide, tech stack, and architecture notes, written for both recruiters and
-engineers.
+The project focuses on building a practical emergency-response workflow with authentication, role-based access, live maps, real-time updates, AI-assisted incident analysis, and incident verification.
 
-🚀 **[Deployment guide](DEPLOYMENT.md)** — step-by-step: GitHub → MongoDB
-Atlas → Render → Vercel, all on free tiers.
+## Features
 
-## What it actually does
+### Authentication and Access Control
 
-- **JWT auth with refresh tokens**, role-based access control (citizen, EOC, rescue team, hospital, shelter)
-- **Citizens** submit SOS alerts / incident reports on a live Leaflet map (OpenStreetMap, no API key needed)
-- Every report is run through an **AI triage service** (Google Gemini free tier, JSON-structured output) that suggests severity, category, and needed resources — with an **offline rule-based fallback** so the app is 100% demoable with zero external accounts
-- A lightweight **duplicate-detection service** (geo-proximity + Jaccard text similarity — no paid vector DB) auto-merges near-identical reports from the same area
-- **Socket.IO** pushes every new report, status change, and facility update to every open dashboard in real time — no polling
-- The **EOC dashboard** shows a live operational map, an AI-generated situation summary, and one-click status advancement (reported → acknowledged → dispatched → in progress → resolved)
-- The **Rescue team console** shows assigned jobs plus unassigned high-priority incidents to self-assign
-- **Hospital and Shelter portals** let facility staff self-register their facility and push live bed/occupancy capacity updates, broadcast instantly to every dashboard's map
-- **Multi-layer fake-report defense**: every incident gets a 0-100 trust score combining GPS consistency (30%), crowd confirm/dispute votes (25%), authority sign-off (25%), and AI text-confidence (20%) — states are Pending / Suspicious / Verified / Highly Trusted, fully interactive (anyone can vote, EOC/rescue can verify or reject) and not gated behind demo mode
-- **Organization verification documents**: hospital/shelter/rescue/NGO/volunteer accounts upload an ID/registration image at signup (stored as-is, no paid file storage needed); EOC reviews and approves/rejects it from the dashboard — a stand-in for the government-official check a real deployment would need
-- **Smart calamity map**: each incident renders as a category-specific icon (🌊 flood, 🔥 fire, 🚑 medical, etc.) colored by risk level (green/yellow/orange/red), critical incidents pulse, and resolved/rejected incidents fade to grey — live over Socket.IO the instant status changes
-- **EOC broadcast alerts**: a "high risk notification" bar the EOC can push to every connected dashboard's top bar instantly, plus retract when the risk passes
-- **Emergency contact directory**: EOC dashboard lists every hospital/shelter/rescue team/NGO with phone number and live facility capacity, in one place
-- **AI incident summaries, kept short on purpose**: instead of reproducing the citizen's paragraph, every report gets a terse 1-2 sentence briefing — e.g. a report about "40 people trapped after a dam overflow" becomes *"Flood reported. Approximately 40 people affected. Immediate evacuation recommended."* — extracting the affected-person count when mentioned and picking an action phrase from severity, so EOC staff triaging a long queue get the headline, not the essay
-- **AI resource recommendation checklist**: every incident gets a dispatch checklist (e.g. ✓ 3 Ambulances, ✓ 2 Rescue boats, ✓ Police unit, ✓ Temporary shelter — Estimated response: 15 minutes) shown on every incident card. This is **deliberately a deterministic rule table, not an LLM guess** — see the "Architecture notes" section for why that's a safety decision
-- **Bottom-right assistant chatbot**, role-aware from one shared endpoint: citizens get instant safety guidance ("Water is entering my house" → move-to-higher-ground advice + nearest shelter with live distance) while EOC gets natural-language incident search ("Show all unverified flood reports" → parsed into a live filtered list, clickable straight into the dashboard)
-- A **seed script** builds a reproducible "Mumbai Flood" demo scenario (5 accounts, 4 facilities, 5 incidents with varied trust states — including one caught and rejected as unreliable) so you can demo instantly
+- JWT-based authentication with access and refresh tokens
+- Role-based access control
+- Separate access for:
+  - Citizen
+  - Emergency Control Center
+  - Rescue Team
+  - Hospital
+  - Shelter
+- Protected frontend routes and backend authorization middleware
 
-## Tech stack
+### Incident Reporting
 
-| Layer      | Choice                                                                 |
-|------------|-------------------------------------------------------------------------|
-| Frontend   | React 18 + Vite, Tailwind CSS, React Router, TanStack Query, react-leaflet |
-| Backend    | Node.js + Express                                                      |
-| Database   | MongoDB (Atlas free tier), Mongoose ODM, 2dsphere geo indexes           |
-| Auth       | JWT access tokens (in-memory) + httpOnly refresh-token cookie          |
-| Realtime   | Socket.IO                                                               |
-| Maps       | OpenStreetMap tiles + Leaflet (free, no key)                            |
-| AI         | Google Gemini free tier, with an offline mock fallback                  |
-| Deployment | Vercel (frontend), Render/Railway (backend), MongoDB Atlas (DB)         |
+- Citizens can submit SOS alerts and incident reports
+- Reports include location, category, severity, description, and supporting information
+- Incidents are displayed on an interactive Leaflet map
+- OpenStreetMap is used for map data, so no paid map API key is required
 
----
+### AI-Assisted Incident Analysis
 
-## Project structure
+- Incident descriptions can be analyzed using Google Gemini
+- The AI service helps identify:
+  - Incident category
+  - Severity
+  - Approximate number of affected people
+  - Recommended response information
+- A rule-based fallback is included so the application can still work when an external AI API is unavailable
 
-```
-crisisgrid/
+### Duplicate Incident Detection
+
+The backend checks whether a newly submitted report is likely to describe an existing incident.
+
+The current approach combines:
+
+- Geographic proximity
+- Text similarity
+- Jaccard similarity over incident text
+
+This avoids requiring a separate vector database for the current project.
+
+### Real-Time Updates
+
+Socket.IO is used for real-time communication.
+
+Dashboards can receive updates when:
+
+- A new incident is reported
+- An incident status changes
+- A facility updates its capacity
+- An emergency broadcast is created or removed
+- Other operational information changes
+
+This allows different users to see important updates without continuously polling the server.
+
+### Emergency Control Center
+
+The emergency control dashboard provides:
+
+- Live incident map
+- Incident list
+- Incident severity and category
+- Incident verification status
+- Incident status management
+- AI-generated incident summaries
+- Resource recommendations
+- Emergency broadcasts
+- Facility and emergency contact information
+
+Incident status can move through the response workflow:
+
+`Reported → Acknowledged → Dispatched → In Progress → Resolved`
+
+### Rescue Team Dashboard
+
+Rescue teams can:
+
+- View assigned incidents
+- View available high-priority incidents
+- Self-assign suitable incidents
+- Track incident progress
+- Receive real-time updates
+
+### Hospital and Shelter Management
+
+Facility users can register and manage their facility information.
+
+The platform supports:
+
+- Hospital registration
+- Shelter registration
+- Bed/capacity information
+- Occupancy updates
+- Facility contact information
+- Real-time capacity updates on operational dashboards
+
+### Incident Trust and Verification
+
+The project includes a trust-score system for incident verification.
+
+The score considers multiple signals:
+
+- GPS consistency
+- Crowd confirmation/dispute
+- Authority verification
+- AI confidence
+
+Incidents can move through states such as:
+
+`Pending → Suspicious → Verified → Highly Trusted`
+
+Users can provide confirmation or dispute information, while authorized emergency personnel can verify or reject reports.
+
+### Organization Verification
+
+Organization accounts can provide verification documents during registration.
+
+Emergency control users can review the submitted information and approve or reject the organization.
+
+### Interactive Emergency Map
+
+Incidents are represented on the map according to their category and risk level.
+
+Examples include:
+
+- Flood
+- Fire
+- Medical emergency
+- Other emergency categories
+
+Critical incidents can be highlighted on the map, while resolved or rejected incidents are visually de-emphasized.
+
+### Emergency Broadcasts
+
+The emergency control center can send a high-risk notification to connected users.
+
+The notification appears in the application in real time and can be removed when the situation is no longer active.
+
+### Emergency Contact Directory
+
+The emergency control dashboard provides a centralized view of:
+
+- Hospitals
+- Shelters
+- Rescue teams
+- Other registered emergency organizations
+- Contact information
+- Current facility capacity
+
+### Resource Recommendations
+
+The system provides a response checklist for incidents.
+
+The recommendations are generated using deterministic rules based on incident category and severity rather than allowing an LLM to invent operational quantities.
+
+This keeps the response logic predictable and easier to validate.
+
+### Assistant
+
+A role-aware assistant is available from the application.
+
+For citizens, it can provide basic emergency guidance and relevant shelter information.
+
+For emergency control users, it can help search incidents using natural-language queries.
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, Vite |
+| Styling | Tailwind CSS |
+| Routing | React Router |
+| Server State | TanStack Query |
+| Maps | Leaflet, React Leaflet, OpenStreetMap |
+| Backend | Node.js, Express.js |
+| Database | MongoDB, Mongoose |
+| Authentication | JWT |
+| Real-Time Communication | Socket.IO |
+| AI | Google Gemini with rule-based fallback |
+| Deployment | Vercel, Render/Railway, MongoDB Atlas |
+
+## Project Structure
+
+```text
+resqnet/
 ├── backend/
 │   ├── src/
-│   │   ├── config/db.js            # Mongo connection (fails soft, not hard)
-│   │   ├── models/                 # User, Incident, Facility (Mongoose schemas)
-│   │   ├── middleware/             # auth (JWT), error handler
-│   │   ├── controllers/            # business logic per resource
-│   │   ├── routes/                 # Express routers
-│   │   ├── services/                # aiService, duplicateService, socketService
-│   │   ├── seed/demoSeed.js         # Mumbai Flood demo data
-│   │   └── server.js                # app entry point
+│   │   ├── config/
+│   │   │   └── db.js
+│   │   ├── models/
+│   │   │   ├── User.js
+│   │   │   ├── Incident.js
+│   │   │   └── Facility.js
+│   │   ├── middleware/
+│   │   │   ├── auth.js
+│   │   │   └── errorHandler.js
+│   │   ├── controllers/
+│   │   ├── routes/
+│   │   ├── services/
+│   │   │   ├── aiService.js
+│   │   │   ├── duplicateService.js
+│   │   │   ├── socketService.js
+│   │   │   └── trustScoreService.js
+│   │   ├── seed/
+│   │   │   └── demoSeed.js
+│   │   └── server.js
 │   ├── package.json
 │   └── .env.example
-└── frontend/
-    ├── src/
-    │   ├── api/axiosClient.js       # axios instance + silent token refresh
-    │   ├── context/                 # AuthContext, SocketContext
-    │   ├── components/               # Navbar, IncidentMap, IncidentCard, SeverityBadge, ProtectedRoute
-    │   ├── pages/                    # Landing, Login, Register, 3 dashboards, ReportIncident
-    │   └── App.jsx / main.jsx
-    ├── package.json
-    └── .env.example
+│
+├── frontend/
+│   ├── src/
+│   │   ├── api/
+│   │   │   └── axiosClient.js
+│   │   ├── context/
+│   │   │   ├── AuthContext.jsx
+│   │   │   └── SocketContext.jsx
+│   │   ├── components/
+│   │   │   ├── Navbar.jsx
+│   │   │   ├── IncidentMap.jsx
+│   │   │   ├── IncidentCard.jsx
+│   │   │   ├── SeverityBadge.jsx
+│   │   │   └── ProtectedRoute.jsx
+│   │   ├── pages/
+│   │   │   ├── Landing.jsx
+│   │   │   ├── Login.jsx
+│   │   │   ├── Register.jsx
+│   │   │   ├── CitizenDashboard.jsx
+│   │   │   ├── EOCDashboard.jsx
+│   │   │   ├── RescueDashboard.jsx
+│   │   │   └── ReportIncident.jsx
+│   │   ├── App.jsx
+│   │   └── main.jsx
+│   ├── package.json
+│   └── .env.example
+│
+└── README.md
 ```
 
----
+## Getting Started
 
-## Running it with Docker (recommended if you have Docker installed)
+### Prerequisites
 
-This spins up MongoDB, the backend, and the frontend together — no MongoDB
-Atlas account needed for local development.
+Make sure the following are installed:
 
-```bash
-cd crisisgrid
-cp backend/.env.example backend/.env
-```
+- Node.js
+- npm
+- MongoDB or a MongoDB Atlas database
+- Git
 
-Edit `backend/.env` and set `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` (generate
-with `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"`
-— you'll need Node installed just for this one command, or use any online
-random-hex generator). Leave `MONGO_URI` as-is; docker-compose overrides it
-automatically to point at the local Mongo container. Leave `GEMINI_API_KEY`
-blank to use the offline mock AI.
+Google Gemini is optional because the project includes a fallback analysis mode.
 
-```bash
-docker compose up --build
-```
-
-First run takes a minute or two (pulling the Mongo image, installing npm
-packages). Once it's up, seed the demo data:
-
-```bash
-docker compose exec backend npm run seed
-```
-
-Then open **http://localhost:5173**. The backend runs at **http://localhost:5000**,
-MongoDB at **localhost:27017** (reachable with MongoDB Compass if you want to
-browse the data visually).
-
-Useful commands:
-
-```bash
-docker compose down              # stop everything
-docker compose down -v           # stop and wipe the Mongo data volume too
-docker compose logs -f backend   # tail backend logs
-docker compose up --build        # rebuild after changing package.json or Dockerfiles
-```
-
-Editing files under `backend/src` or `frontend/src` on your host reflects
-into the running containers automatically (both dev servers have hot
-reload). If you only change dependencies (`package.json`), re-run with `--build`.
-
-> The frontend/backend Dockerfiles here are dev-mode (hot reload). For a
-> production-style container build, see `frontend/Dockerfile.prod` (a
-> multi-stage build that serves the compiled static app via nginx) — not
-> wired into `docker-compose.yml` by default since Vercel/Render remain the
-> simpler path to a live deployed URL for a portfolio project.
-
----
-
-## Running it without Docker (manual setup)
-
-### 1. Backend
+## Backend Setup
 
 ```bash
 cd backend
-cp .env.example .env
 npm install
 ```
 
-Edit `.env`:
-- **Fastest path (no external accounts):** leave `MONGO_URI` and `GEMINI_API_KEY`
-  blank and `DEMO_MODE=true`. The API will boot, but you'll need a real
-  `MONGO_URI` for any request that touches the database (a free MongoDB
-  Atlas cluster takes about 5 minutes to set up: https://www.mongodb.com/atlas).
-- Generate JWT secrets quickly:
-  ```bash
-  node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
-  ```
-
-Once `MONGO_URI` is set:
+Create a `.env` file from the example:
 
 ```bash
-npm run seed   # populates the Mumbai Flood demo scenario
-npm run dev    # starts the API on http://localhost:5000
+cp .env.example .env
 ```
 
-Demo login credentials (printed by the seed script too):
+Configure the required environment variables.
 
-| Role         | Email                          | Password    |
-|--------------|----------------------------------|-------------|
-| Citizen      | citizen@demo.crisisgrid.app      | Demo@1234   |
-| EOC Control  | eoc@demo.crisisgrid.app          | Demo@1234   |
-| Rescue Team  | rescue@demo.crisisgrid.app       | Demo@1234   |
-| Hospital     | hospital@demo.crisisgrid.app     | Demo@1234   |
-| Shelter      | shelter@demo.crisisgrid.app      | Demo@1234   |
+For JWT secrets, generate secure random values. For example:
 
-### 2. Frontend
+```bash
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+```
+
+Start the backend:
+
+```bash
+npm run dev
+```
+
+The backend runs on:
+
+```text
+http://localhost:5000
+```
+
+## Frontend Setup
+
+Open another terminal:
 
 ```bash
 cd frontend
-cp .env.example .env
 npm install
-npm run dev    # starts on http://localhost:5173
 ```
 
-Open http://localhost:5173, click a demo role button on the login page to
-autofill credentials, and sign in.
+Create the environment file:
 
----
+```bash
+cp .env.example .env
+```
 
-## Deployment (all free tiers)
+Start the frontend:
 
-See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the full step-by-step guide,
-including exact screens/settings for MongoDB Atlas, Render, and Vercel,
-troubleshooting for common issues, and how to put the live link on your
-GitHub profile.
+```bash
+npm run dev
+```
 
-Short version: MongoDB Atlas (free M0 cluster) for the database, Render for
-the backend (root dir `backend/`, build `npm install`, start `npm start`),
-Vercel for the frontend (root dir `frontend/`, Vite preset), then point
-`CLIENT_URL` (backend) and `VITE_API_URL` (frontend) at each other's final
-URLs and re-run the seed script against the production database.
+The frontend runs on:
 
----
+```text
+http://localhost:5173
+```
 
-## Architecture notes worth knowing for an interview
+## Demo Data
 
-- **Single `User` collection, one `role` enum field** rather than 8 separate
-  collections — one auth identity, many possible roles, simpler JWT logic.
-  Trade-off: role-specific fields (e.g. hospital resources) live on a
-  separate `Facility` document instead, keeping `User` lean.
-- **Access token in memory, refresh token in an httpOnly cookie.** This
-  avoids storing any JWT in `localStorage` (a common XSS vector). Axios has a
-  response interceptor that catches a `401`, calls `/auth/refresh`, and
-  retries the original request once — the user never notices their 15-minute
-  access token expired.
-- **AI service is a swappable strategy**: `analyzeIncident()` tries Gemini
-  first (only outside demo mode, with an API key present) and *always* falls
-  back to a deterministic keyword classifier on any failure — missing key,
-  network error, bad JSON, rate limit. This means a flaky free-tier API can
-  never break a live demo.
-- **Duplicate detection without a vector database**: a MongoDB `$near` geo
-  query narrows candidates to within 500m, then Jaccard similarity on the
-  word sets of title+description flags likely duplicates. Cheap, explainable,
-  and genuinely works for short incident reports.
-- **Realtime without over-engineering**: rather than hand-rolling
-  optimistic cache updates from socket payloads, the frontend just
-  invalidates the relevant React Query keys on any socket event, letting
-  React Query re-fetch. Simpler, fewer race-condition bugs, at the cost of
-  one extra network round-trip per update — a reasonable trade for a project
-  this size.
-- **Trust score as an explainable weighted formula, not a black box**: each
-  of the four signals (GPS/crowd/authority/AI) is independently computable
-  and testable — `trustScoreService.js` has no hidden state, just pure
-  functions of its inputs. A missing signal (e.g. no GPS permission) returns
-  a neutral score rather than being treated as suspicious, which matters:
-  you don't want to punish someone for denying a location permission.
-- **Verification data lives on the Incident document itself** (`crowdVotes`,
-  `authorityVerification`, `verification`), not a separate collection —
-  recomputed in one place (`computeTrustScore`) every time any signal
-  changes, called from three different code paths (create, crowd vote,
-  authority action) so the score can never drift out of sync with its inputs.
-- **Resource recommendations are a deterministic rule table, not an LLM
-  output** (`RESOURCE_RULES` in `aiService.js`) — deliberately. An LLM is a
-  good fit for turning free text into a category/severity classification
-  (fuzzy, language-y, low-stakes-if-wrong-because-a-human-reviews-it); it's
-  a bad fit for inventing "how many ambulances" from scratch, since models
-  can generate a plausible-sounding wrong number with total confidence. The
-  same reasoning applies to the EOC chatbot's query parser (`chatService.js`)
-  — a transparent keyword-to-filter mapping you can point to and explain,
-  rather than a black box. Both are clean upgrade paths to a real LLM call
-  once there's a validation/guardrail layer around the output.
+The project includes a seed script for creating sample users, facilities, and incidents.
 
-## Roadmap / what was intentionally left out (and why)
+Run:
 
-These were all in the original spec but cut from v1 to ship something solid
-by deadline. They're strong "what would you add next" interview answers:
+```bash
+cd backend
+npm run seed
+```
 
-- **Volunteer, NGO, and Admin portals** — the `User.role` enum and
-  `authorize()` middleware already support them; it's mostly new dashboard
-  pages plus a data model per role, no architecture change needed (the
-  Hospital/Shelter portals in this repo are a working template for that).
-- **AI image verification** (detecting flood/fire/damage in an uploaded
-  photo + checking EXIF metadata) — the trust-score architecture already has
-  a slot for it (the `aiScore` component); it's deferred because it needs
-  real file upload wired up first (currently `imageUrl` is a plain string
-  field with no upload endpoint behind it).
-- **Dedicated police/fire/municipal authority roles** — right now EOC/rescue
-  team stand in for "authority verification"; adding real roles is just
-  extending the `User.role` enum and `authorize()` calls, no schema change.
-- **Offline-first PWA** (service worker, local report queue, background
-  sync) — would use the Background Sync API + IndexedDB.
-- **BullMQ + Redis** for background jobs (e.g. batch AI re-analysis, digest
-  emails) — not needed at this scale yet; would matter once report volume
-  is high enough that AI calls shouldn't block the request/response cycle.
-- **Ollama local-model fallback** for a fully offline AI mode.
-- **SMS broadcast alerts** — the in-app alert bar covers push/in-app; SMS
-  needs a paid provider (Twilio-class), intentionally left out of a
-  free-tier project. Email would be a free add via Nodemailer + SMTP.
-- **Weather/GIS overlays and AI route optimization** — free weather APIs
-  exist (OpenWeatherMap), but real routing/traffic-avoidance needs a
-  routing engine (OSRM/Mapbox) — a project-sized feature on its own.
-- **Donations/funding module** with mock payment flow.
-- **More demo scenarios** (cyclone, earthquake, wildfire) — the seed script
-  is structured so adding another scenario is just another seed file.
+This creates a sample emergency scenario that can be used while testing the dashboards.
 
-## Skills this project demonstrates
+## Architecture
 
-Full MERN CRUD · JWT auth with refresh-token rotation · role-based
-authorization middleware · MongoDB geospatial queries (`2dsphere`, `$near`) ·
-real-time architecture with Socket.IO · external API integration with a
-graceful degradation strategy · a from-scratch similarity algorithm · a
-multi-signal weighted trust/verification system · file-to-base64 handling
-without a storage service · React Query for server-state caching · protected
-routing · responsive Tailwind UI.
-#   R e s Q N e t  
- 
+The application is divided into a React frontend and an Express backend.
+
+```text
+                 ┌─────────────────────┐
+                 │      React App      │
+                 │   Vite + Tailwind   │
+                 └──────────┬──────────┘
+                            │
+                    REST API / Socket.IO
+                            │
+                 ┌──────────▼──────────┐
+                 │   Express Server    │
+                 │   Node.js Backend   │
+                 └───────┬───────┬─────┘
+                         │       │
+                ┌────────▼──┐ ┌──▼────────────┐
+                │  MongoDB  │ │ AI / Services │
+                │  Mongoose │ │ Gemini + Rules │
+                └───────────┘ └───────────────┘
+```
+
+### Authentication
+
+The application uses short-lived JWT access tokens together with refresh tokens.
+
+The frontend keeps the access token in memory and uses the refresh-token flow when a session needs to be renewed.
+
+Protected routes on the backend verify the token and then check whether the user's role has permission to access the requested resource.
+
+### Real-Time Communication
+
+Socket.IO handles events that need to reach connected clients immediately.
+
+Instead of implementing separate polling logic for every dashboard, the backend emits events whenever important operational data changes.
+
+The frontend listens for those events and refreshes the relevant server-state queries.
+
+### AI Service
+
+AI processing is kept behind a service layer.
+
+The application first attempts to use Gemini when it is configured. If the external service cannot be used, the backend falls back to deterministic rules.
+
+This keeps AI functionality separate from the core incident workflow.
+
+### Duplicate Detection
+
+Duplicate detection is handled in two steps:
+
+1. Find nearby incidents using MongoDB geospatial queries.
+2. Compare the text of the reports using Jaccard similarity.
+
+This keeps the implementation lightweight while still providing useful duplicate detection for short incident descriptions.
+
+### Trust Score
+
+The trust score is calculated from independent verification signals.
+
+The calculation is kept in a separate service so that the score can be recalculated whenever a relevant signal changes.
+
+The incident itself stores the verification information, making it possible to inspect the inputs that produced the current score.
+
+### Resource Recommendation
+
+Resource recommendations use a predefined rule table.
+
+For example, incident category and severity can map to an appropriate response checklist.
+
+This is intentionally kept deterministic because operational resource quantities should not depend entirely on an unconstrained language-model response.
+
+## Development Notes
+
+A few design decisions were made to keep the project manageable while leaving room for future expansion:
+
+- A single `User` model is used with a role field instead of creating separate authentication systems for each role.
+- Facility-specific information is stored separately from the main user document.
+- MongoDB geospatial indexes are used for location-based incident queries.
+- Socket.IO handles real-time operational updates.
+- React Query manages server-side state on the frontend.
+- AI functionality is isolated behind a service layer.
+- Rule-based fallbacks are used for important functionality that should remain available without external APIs.
+- The current duplicate detection does not require a vector database.
+- Verification signals are stored with the incident and recalculated when they change.
+
+## Future Improvements
+
+The current version can be extended with:
+
+- Dedicated police, fire, and municipal authority roles
+- Volunteer and NGO dashboards
+- Image-based incident verification
+- Offline-first/PWA support
+- Background job processing with Redis and BullMQ
+- Local AI models through Ollama
+- SMS emergency notifications
+- Weather and GIS overlays
+- Route optimization for rescue teams
+- Additional disaster scenarios
+- More advanced analytics and reporting
+
+## What I Learned
+
+This project helped me work with several areas of full-stack development:
+
+- Designing REST APIs with Express
+- Building role-based authentication and authorization
+- Working with MongoDB geospatial queries
+- Implementing real-time communication using Socket.IO
+- Integrating an external AI service
+- Designing fallback logic for external dependencies
+- Building responsive dashboards with React
+- Managing server state with TanStack Query
+- Designing verification and trust workflows
+- Structuring a MERN application into controllers, routes, services, and models
+
+## Status
+
+Initial version of ResQNet.
+
+The main emergency reporting, monitoring, verification, real-time communication, and facility-management workflows are being developed as part of the first version.
