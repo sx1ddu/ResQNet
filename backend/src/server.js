@@ -48,6 +48,11 @@ const apiLimiter = rateLimit({
 app.use('/api', apiLimiter);
 
 // --- Health check (used by Render/Railway to know the service is alive) --
+// Make the service's base deployment URL useful when opened directly.
+app.get('/', (req, res) => {
+  res.json({ success: true, message: 'ResQNet API is running', health: '/api/health' });
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'ResQNet API is running', demoMode: process.env.DEMO_MODE === 'true' });
 });
