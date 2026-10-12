@@ -1,286 +1,129 @@
-// -----------------------------------------------------------------------------
-// demoSeed.js — populates the database with a reproducible "Mumbai Flood"
-// demo scenario: a handful of users (one per role), shelters, a hospital,
-// and several incidents at real Mumbai coordinates.
-//
-// Run with:  npm run seed   (from the backend/ folder, with MONGO_URI set)
-//
-// Safe to re-run: it wipes only documents flagged isDemoData:true / demo
-// accounts, so it won't touch real user data if you later reuse this DB.
-// -----------------------------------------------------------------------------
-
-require('dotenv').config();
+// Maintain the ResQNet demo dataset. Run from backend/ with `npm run seed`.
+// `npm run seed:dry-run` only describes the fixture and never connects to MongoDB.
 const mongoose = require('mongoose');
-const connectDB = require('../config/db');
 const User = require('../models/User');
 const Incident = require('../models/Incident');
 const Facility = require('../models/Facility');
-const { computeTrustScore, shouldEscalate } = require('../services/trustScoreService');
-const { computeResourceRecommendation, buildShortSummary } = require('../services/aiService');
+const Alert = require('../models/Alert');
+const aiService = require('../services/aiService');
+const trustService = require('../services/trustScoreService');
+const { IDS, DEMO_EMAILS, DEMO_PASSWORD, buildDemoData } = require('./demoData');
 
-// Reuses the exact same short-summary logic as production reports (see
-// aiService.js) so seeded demo incidents read identically to a real
-// AI-classified report — no separate/fake summary format for the demo.
-function buildDemoSummary(seedIncident) {
-  return buildShortSummary({
-    text: `${seedIncident.title} ${seedIncident.description}`,
-    category: seedIncident.category,
-    severity: seedIncident.severity,
+const isDryRun = process.argv.includes('--dry-run') || process.env.SEED_DRY_RUN === 'true';
+
+function describePlan(data) {
+  console.log('[seed] Dry run: no MongoDB connection or writes will be made.');
+  console.log(`[seed] Would upsert ${data.users.length} users: ${DEMO_EMAILS.join(', ')}`);
+  console.log(`[seed] Would upsert ${data.facilities.length} facilities, ${data.incidents.length} incidents, and ${data.alerts.length} active alerts.`);
+  console.log(`[seed] UI demo password: ${DEMO_PASSWORD} (demo use only)`);
+  console.log('[seed] Reruns update records with the same fixed IDs. Cleanup is limited to stale incident, facility, and alert records already marked isDemoData:true.');
+}
+
+function assertDemoIdAvailable(Model, id, email) {
+  return Model.findById(id).then((existing) => {
+    if (existing && email && existing.email !== email) {
+      throw new Error(`Refusing to reuse a reserved demo ID for a different ${Model.modelName} account.`);
+    }
+    if (existing && !email && existing.isDemoData !== true) {
+      throw new Error(`Refusing to overwrite a non-demo ${Model.modelName} record at a reserved demo ID.`);
+    }
   });
 }
 
-const DEMO_EMAILS = [
-  'citizen@demo.resqnet.app',
-  'eoc@demo.resqnet.app',
-  'rescue@demo.resqnet.app',
-  'hospital@demo.resqnet.app',
-  'shelter@demo.resqnet.app',
-  'volunteer@demo.resqnet.app',
-];
-const DEMO_PASSWORD = 'Demo@1234';
-
-// A tiny 1x1 transparent PNG used as a stand-in "ID/registration document"
-// for demo accounts — keeps the seed file self-contained with no need to
-// read an actual image file from disk.
-const PLACEHOLDER_DOC =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
-
-async function seed() {
-  await connectDB();
-  console.log('[seed] Connected. Clearing previous demo data...');
-
-  await User.deleteMany({ email: { $in: DEMO_EMAILS } });
-  await Incident.deleteMany({ isDemoData: true });
-  await Facility.deleteMany({ isDemoData: true });
-
-  const [citizen, eoc, rescue, hospitalUser, shelterUser] = await User.create([
-    { name: 'Aarav Sharma', email: DEMO_EMAILS[0], password: DEMO_PASSWORD, role: 'citizen', phone: '9820000001' },
-    { name: 'EOC Mumbai Control', email: DEMO_EMAILS[1], password: DEMO_PASSWORD, role: 'eoc', organizationName: 'Mumbai Disaster Management Cell' },
-    {
-      name: 'NDRF Team 4',
-      email: DEMO_EMAILS[2],
+async function upsertUser(fixture) {
+  // Exact allowlisted emails intentionally migrate users made by the previous
+  // seed version, which did not have the isDemoData marker or stable IDs.
+  let user = await User.findOne({ email: fixture.email });
+  if (!user) {
+    await assertDemoIdAvailable(User, fixture._id, fixture.email);
+    user = new User({ ...fixture, password: DEMO_PASSWORD, isDemoData: true });
+  } else if (user.role !== fixture.role || !DEMO_EMAILS.includes(user.email)) {
+    throw new Error(`Refusing to adopt ${fixture.email}: it does not match the expected demo role/account allowlist.`);
+  } else {
+    user.set({
+      name: fixture.name,
+      email: fixture.email,
       password: DEMO_PASSWORD,
-      role: 'rescue_team',
-      organizationName: 'NDRF Team 4',
-      phone: '9820000099',
-      verificationDocument: { dataUrl: PLACEHOLDER_DOC, fileName: 'ndrf-id.png', status: 'approved', uploadedAt: new Date(), reviewedAt: new Date() },
-    },
-    {
-      name: 'Sion Hospital Admin',
-      email: DEMO_EMAILS[3],
-      password: DEMO_PASSWORD,
-      role: 'hospital',
-      organizationName: 'Sion Hospital',
-      phone: '9820000011',
-      verificationDocument: {
-        dataUrl: PLACEHOLDER_DOC,
-        fileName: 'hospital-license.png',
-        status: 'approved',
-        uploadedAt: new Date(),
-        reviewedAt: new Date(),
-      },
-    },
-    {
-      name: 'BKC Relief Camp',
-      email: DEMO_EMAILS[4],
-      password: DEMO_PASSWORD,
-      role: 'shelter',
-      organizationName: 'BKC Relief Camp',
-      phone: '9820000022',
-      verificationDocument: {
-        dataUrl: PLACEHOLDER_DOC,
-        fileName: 'shelter-registration.png',
-        status: 'approved',
-        uploadedAt: new Date(),
-        reviewedAt: new Date(),
-      },
-    },
-  ]);
-
-  await User.create({
-    name: 'ResQNet Demo Volunteer',
-    email: DEMO_EMAILS[5],
-    password: DEMO_PASSWORD,
-    role: 'volunteer',
-    verificationDocument: { dataUrl: PLACEHOLDER_DOC, fileName: 'volunteer-id.png', status: 'pending', uploadedAt: new Date() },
-  });
-
-  console.log('[seed] Created demo users for every role (password: %s)', DEMO_PASSWORD);
-
-  const facilities = await Facility.create([
-    {
-      type: 'shelter',
-      name: 'BKC Relief Camp',
-      location: { coordinates: [72.8656, 19.0669], address: 'Bandra Kurla Complex, Mumbai' },
-      capacityTotal: 200,
-      capacityUsed: 140,
-      managedBy: shelterUser._id,
+      role: fixture.role,
+      organizationName: fixture.organizationName,
+      phone: fixture.phone,
+      location: fixture.location,
+      safetyStatus: fixture.safetyStatus || 'unknown',
+      verificationDocument: fixture.verificationDocument || { status: 'not_submitted' },
       isDemoData: true,
-    },
-    {
-      type: 'shelter',
-      name: 'Dadar Community Hall Shelter',
-      location: { coordinates: [72.8437, 19.0176], address: 'Dadar, Mumbai' },
-      capacityTotal: 120,
-      capacityUsed: 45,
-      isDemoData: true,
-    },
-    {
-      type: 'hospital',
-      name: 'Sion Hospital',
-      location: { coordinates: [72.8619, 19.0448], address: 'Sion, Mumbai' },
-      capacityTotal: 80,
-      capacityUsed: 61,
-      resources: ['ICU', 'ambulance', 'oxygen'],
-      managedBy: hospitalUser._id,
-      isDemoData: true,
-    },
-    {
-      type: 'hospital',
-      name: 'KEM Hospital',
-      location: { coordinates: [72.8417, 19.0006], address: 'Parel, Mumbai' },
-      capacityTotal: 100,
-      capacityUsed: 88,
-      resources: ['ICU', 'oxygen', 'blood bank'],
-      isDemoData: true,
-    },
-  ]);
-  console.log(`[seed] Created ${facilities.length} facilities`);
-
-  const incidentSeeds = [
-    {
-      type: 'sos',
-      title: 'Family trapped on rooftop, rising water',
-      description: 'Water level rising fast near Hindmata, a family of 4 including an infant is stuck on the roof.',
-      category: 'flood',
-      severity: 'critical',
-      coords: [72.8339, 19.0016],
-      address: 'Hindmata, Dadar, Mumbai',
-      // Demo: a strong, corroborated report — GPS matches, crowd confirms,
-      // authority has verified it. Also left in "reported" status so it
-      // shows up as escalated on the EOC dashboard.
-      demoVerification: { authorityStatus: 'confirmed', crowdConfirms: 3, crowdDisputes: 0, gpsMatch: true, aiConfidence: 90 },
-    },
-    {
-      type: 'incident_report',
-      title: 'Waterlogging blocking main road',
-      description: 'Knee-deep water on the main road near Sion Circle, vehicles stalled, traffic gridlocked.',
-      category: 'flood',
-      severity: 'medium',
-      coords: [72.8610, 19.0430],
-      address: 'Sion Circle, Mumbai',
-      // Demo: freshly reported, nobody has verified it yet — "pending" state.
-      demoVerification: { authorityStatus: 'pending', crowdConfirms: 0, crowdDisputes: 0, gpsMatch: null, aiConfidence: 55 },
-    },
-    {
-      type: 'resource_request',
-      title: 'Need drinking water and food supplies',
-      description: 'Relief camp at BKC is running low on drinking water and dry rations for ~140 people.',
-      category: 'flood',
-      severity: 'high',
-      coords: [72.8656, 19.0669],
-      address: 'Bandra Kurla Complex, Mumbai',
-      // Demo: crowd has confirmed it but authority hasn't looked yet — "verified".
-      demoVerification: { authorityStatus: 'pending', crowdConfirms: 2, crowdDisputes: 0, gpsMatch: true, aiConfidence: 70 },
-    },
-    {
-      type: 'sos',
-      title: 'Elderly person needs medical evacuation',
-      description: 'An elderly man with breathing difficulty is stranded, water has surrounded the building entrance.',
-      category: 'medical',
-      severity: 'critical',
-      coords: [72.8500, 19.0550],
-      address: 'Kurla, Mumbai',
-      // Demo: second escalated/highly-trusted example.
-      demoVerification: { authorityStatus: 'confirmed', crowdConfirms: 2, crowdDisputes: 0, gpsMatch: true, aiConfidence: 85 },
-    },
-    {
-      type: 'incident_report',
-      title: 'Short-circuit sparks reported near flooded market',
-      description: 'Sparks seen from an electric pole standing in floodwater near Dadar market, risk of electrocution.',
-      category: 'other',
-      severity: 'high',
-      coords: [72.8450, 19.0190],
-      address: 'Dadar Market, Mumbai',
-      // Demo: this is the "caught a bad report" example — crowd disputed it
-      // and authority rejected it, exactly the fake/mistaken-report defense
-      // the verification system exists for.
-      demoVerification: { authorityStatus: 'rejected', crowdConfirms: 0, crowdDisputes: 2, gpsMatch: false, aiConfidence: 40 },
-    },
-  ];
-
-  const incidentDocs = incidentSeeds.map((seedIncident) => {
-    const { demoVerification: dv } = seedIncident;
-
-    const crowdVotes = [
-      ...Array(dv.crowdConfirms).fill({ user: eoc._id, vote: 'confirm' }),
-      ...Array(dv.crowdDisputes).fill({ user: rescue._id, vote: 'dispute' }),
-    ];
-
-    const authorityVerification = {
-      status: dv.authorityStatus,
-      verifiedBy: dv.authorityStatus === 'pending' ? null : eoc._id,
-      at: dv.authorityStatus === 'pending' ? undefined : new Date(),
-    };
-
-    const { recommendedResources, etaMinutes } = computeResourceRecommendation({
-      category: seedIncident.category,
-      severity: seedIncident.severity,
     });
-
-    const aiAnalysis = {
-      summary: buildDemoSummary(seedIncident),
-      suggestedSeverity: seedIncident.severity,
-      suggestedCategory: seedIncident.category,
-      suggestedResources: [],
-      recommendedResources,
-      etaMinutes,
-      confidence: dv.aiConfidence,
-      generatedAt: new Date(),
-      source: 'mock',
-    };
-
-    const verification = computeTrustScore({
-      incidentCoords: seedIncident.coords,
-      reporterCoords: dv.gpsMatch === null ? null : dv.gpsMatch ? seedIncident.coords : [72.9, 19.2], // far away = mismatch
-      votes: crowdVotes,
-      authorityVerification,
-      aiAnalysis,
-    });
-
-    const status = dv.authorityStatus === 'rejected' ? 'rejected' : 'reported';
-
-    return {
-      type: seedIncident.type,
-      title: seedIncident.title,
-      description: seedIncident.description,
-      category: seedIncident.category,
-      severity: seedIncident.severity,
-      status,
-      location: { coordinates: seedIncident.coords, address: seedIncident.address },
-      reportedBy: citizen._id,
-      aiAnalysis,
-      crowdVotes,
-      authorityVerification,
-      verification,
-      escalated: shouldEscalate({ severity: seedIncident.severity, status, trustState: verification.trustState }),
-      timeline: [{ status: 'reported', note: 'Seeded demo report', actor: citizen._id }],
-      isDemoData: true,
-    };
-  });
-
-  const incidents = await Incident.create(incidentDocs);
-  console.log(`[seed] Created ${incidents.length} incidents for the Mumbai Flood scenario`);
-
-  console.log('\n[seed] Demo login credentials (same password for all):');
-  console.log(`  password: ${DEMO_PASSWORD}`);
-  DEMO_EMAILS.forEach((email) => console.log(`  - ${email}`));
-
-  await mongoose.disconnect();
-  console.log('\n[seed] Done.');
+  }
+  await user.save();
+  return user;
 }
 
-seed().catch((err) => {
-  console.error('[seed] Failed:', err);
-  process.exit(1);
+async function upsertOwnedRecord(Model, fixture) {
+  const existing = await Model.findById(fixture._id);
+  if (existing && existing.isDemoData !== true) {
+    throw new Error(`Refusing to overwrite a non-demo ${Model.modelName} at a reserved demo ID.`);
+  }
+  if (!existing) return new Model(fixture).save();
+  existing.set(fixture);
+  return existing.save();
+}
+
+async function runSeed() {
+  const initialData = buildDemoData({ aiService, trustService });
+  if (isDryRun) {
+    describePlan(initialData);
+    return;
+  }
+
+  // Load local configuration only for an actual write run. Dry runs don't
+  // inspect environment files and never read MONGO_URI.
+  require('dotenv').config();
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEMO_SEED_IN_PRODUCTION !== 'true') {
+    throw new Error('Refusing to seed in production. Set ALLOW_DEMO_SEED_IN_PRODUCTION=true only for an intentional demo database.');
+  }
+  if (!process.env.MONGO_URI) {
+    throw new Error('MONGO_URI is required. No database was connected or changed.');
+  }
+
+  try {
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log('[seed] Connected to MongoDB. Maintaining the allowlisted ResQNet demo records…');
+
+    // Preserve the actual IDs of exact allowlisted accounts when upgrading the
+    // older seed, so existing references are replaced consistently.
+    const actualUserIds = {};
+    for (const fixture of initialData.users) {
+      const user = await upsertUser(fixture);
+      const key = Object.entries(IDS.users).find(([, id]) => id === fixture._id)?.[0];
+      if (key) actualUserIds[key] = user._id;
+    }
+
+    const data = buildDemoData({ aiService, trustService, userIds: actualUserIds });
+    for (const facility of data.facilities) await upsertOwnedRecord(Facility, facility);
+    for (const incident of data.incidents) await upsertOwnedRecord(Incident, incident);
+    for (const alert of data.alerts) await upsertOwnedRecord(Alert, alert);
+
+    const keepFacilityIds = data.facilities.map((record) => record._id);
+    const keepIncidentIds = data.incidents.map((record) => record._id);
+    const keepAlertIds = data.alerts.map((record) => record._id);
+
+    // Cleanup is limited to positively marked demo records, and happens only
+    // after all current fixtures were written successfully.
+    const [oldFacilities, oldIncidents, oldAlerts] = await Promise.all([
+      Facility.deleteMany({ isDemoData: true, _id: { $nin: keepFacilityIds } }),
+      Incident.deleteMany({ isDemoData: true, _id: { $nin: keepIncidentIds } }),
+      Alert.deleteMany({ isDemoData: true, _id: { $nin: keepAlertIds } }),
+    ]);
+
+    console.log(`[seed] Updated ${data.users.length} demo accounts, ${data.facilities.length} facilities, ${data.incidents.length} incidents, and ${data.alerts.length} alerts.`);
+    console.log(`[seed] Removed stale records already marked as demo data: ${oldFacilities.deletedCount} facilities, ${oldIncidents.deletedCount} incidents, ${oldAlerts.deletedCount} alerts.`);
+    console.log(`[seed] Demo-only password: ${DEMO_PASSWORD}`);
+    for (const email of DEMO_EMAILS) console.log(`  ${email}`);
+  } finally {
+    if (mongoose.connection.readyState !== 0) await mongoose.disconnect();
+  }
+}
+
+runSeed().catch((error) => {
+  console.error(`[seed] Failed: ${error.message}`);
+  process.exitCode = 1;
 });

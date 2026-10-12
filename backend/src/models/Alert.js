@@ -13,6 +13,8 @@ const alertSchema = new mongoose.Schema(
     severity: { type: String, enum: ['info', 'warning', 'critical'], default: 'warning' },
     issuedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     active: { type: Boolean, default: true },
+    // Allows the seed to maintain its own alerts without touching live alerts.
+    isDemoData: { type: Boolean, default: false, index: true },
   },
   { timestamps: true }
 );

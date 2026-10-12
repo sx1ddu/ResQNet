@@ -8,6 +8,8 @@ const DEMO_ACCOUNTS = [
   { label: 'EOC Control', email: 'eoc@demo.resqnet.app' },
   { label: 'Rescue Team', email: 'rescue@demo.resqnet.app' },
   { label: 'Volunteer', email: 'volunteer@demo.resqnet.app' },
+  { label: 'Hospital', email: 'hospital@demo.resqnet.app' },
+  { label: 'Shelter', email: 'shelter@demo.resqnet.app' },
 ];
 const DEMO_PASSWORD = 'Demo@1234';
 
@@ -80,7 +82,7 @@ export default function Login() {
         <div className="mt-6 rounded-md border border-dashed border-gray-300 p-3">
           <p className="text-xs font-medium uppercase tracking-wide text-field-muted">Quick demo access</p>
           <p className="mt-1 text-xs text-field-muted">
-            Run <code className="font-mono">npm run seed</code> in the backend once, then jump in as any role:
+            Run <code className="font-mono">npm run seed</code> in the backend once, then jump in as any demo account:
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             {DEMO_ACCOUNTS.map((acc) => (

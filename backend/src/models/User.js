@@ -75,6 +75,8 @@ const userSchema = new mongoose.Schema(
     // ------------------------------------------------------------------------
 
     refreshTokenHash: { type: String, select: false },
+    // Explicit ownership marker used by the scoped demo seeder.
+    isDemoData: { type: Boolean, default: false, index: true },
   },
   { timestamps: true }
 );
