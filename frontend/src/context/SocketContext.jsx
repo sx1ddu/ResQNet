@@ -1,23 +1,14 @@
-// -----------------------------------------------------------------------------
-// SocketContext.jsx — one Socket.IO client shared across the app so every
-// dashboard/page can subscribe to real-time events (incident:new,
-// incident:update, facility:update, ...) without opening duplicate sockets.
-// -----------------------------------------------------------------------------
-
 import { createContext, useContext, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
-import { API_BASE_URL } from '../api/axiosClient';
+import { API_BASE_URL } from '../api/axiosClient.js';
 import { useAuth } from './AuthContext.jsx';
 
 const SocketContext = createContext(null);
 
-// Socket.IO connects to the server root, not the /api prefix.
 const SOCKET_URL = API_BASE_URL.replace(/\/api\/?$/, '');
 
 export function SocketProvider({ children }) {
   const { user, accessToken, loading } = useAuth();
-  // Kept in state (not a ref) so consumers re-render once the socket exists
-  // and once the connection status flips — a ref alone wouldn't trigger that.
   const [socket, setSocket] = useState(null);
   const [connected, setConnected] = useState(false);
 

@@ -1,5 +1,3 @@
-// Central place that decides which dashboard a role lands on after login.
-// Keeping this in one file avoids scattering role->route logic everywhere.
 export function dashboardPathForRole(role) {
   switch (role) {
     case 'eoc':

@@ -1,12 +1,8 @@
-// -----------------------------------------------------------------------------
-// ProtectedRoute.jsx — wraps a <Route element={...}> to require login, and
-// optionally a specific role. Redirects unauthenticated users to /login and
-// wrong-role users to their own dashboard instead of showing a blank page.
-// -----------------------------------------------------------------------------
-
+import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { dashboardPathForRole } from '../utils/roleRouting.js';
+import { IconRefreshCw } from './ui/Icons.jsx';
 
 export default function ProtectedRoute({ children, allowedRoles }) {
   const { user, loading } = useAuth();
@@ -14,8 +10,9 @@ export default function ProtectedRoute({ children, allowedRoles }) {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-console-bg text-console-mist font-mono text-sm">
-        Checking session…
+      <div className="flex h-screen flex-col items-center justify-center bg-paper text-slate-800 font-mono text-xs gap-3">
+        <IconRefreshCw className="animate-spin text-blue-700" width={24} height={24} />
+        <span>Restoring authenticated session…</span>
       </div>
     );
   }

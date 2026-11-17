@@ -1,24 +1,12 @@
-// -----------------------------------------------------------------------------
-// axiosClient.js — a single configured axios instance used everywhere.
-//
-// The access token lives only in memory (see AuthContext), never in
-// localStorage, to reduce XSS blast radius. When a request comes back 401
-// (access token expired), the interceptor silently calls /auth/refresh
-// (which reads the httpOnly refresh cookie the browser sends automatically)
-// and retries the original request exactly once.
-// -----------------------------------------------------------------------------
-
 import axios from 'axios';
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  withCredentials: true, // sends/receives the httpOnly refresh cookie
+  withCredentials: true,
 });
 
-// These are set from AuthContext once it mounts, avoiding a circular import
-// between axiosClient and AuthContext.
 let accessToken = null;
 let onRefreshFailed = () => {};
 let onAccessTokenRefreshed = () => {};
@@ -53,7 +41,6 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       if (isRefreshing) {
-        // Queue this request until the in-flight refresh resolves.
         return new Promise((resolve, reject) => {
           pendingRequests.push({ resolve, reject });
         }).then(() => api(originalRequest));
