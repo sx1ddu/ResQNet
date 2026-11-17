@@ -5,59 +5,92 @@ export default {
   theme: {
     extend: {
       colors: {
-        // "Console" palette used on authenticated operations dashboards —
-        // black + deep red, matching the brand's "Black Swarm" (#000000)
-        // and "Embers" (#A00C30) swatches. Kept just off pure black
-        // (#0D0D0D) for surfaces so text/borders stay comfortably readable
-        // rather than crushing to true black.
-        console: {
-          bg: '#0D0D0D',
-          surface: '#161616',
-          surfaceAlt: '#202020',
-          border: '#333333',
-          mist: '#F2F0EE',
-          muted: '#9B9B9B',
+        ink: {
+          950: '#101B2A',
+          900: '#142437',
+          800: '#1E3044',
+          700: '#2C4055',
+          600: '#3D546C',
         },
-        // "Field" palette used on public / citizen-facing pages (landing,
-        // login, register). Kept light — unlike the console dashboards,
-        // this page's text sits directly on `field.bg` AND inside white
-        // cards at the same time, so `field.bg` and `field.surface` can't
-        // both go dark without one of those two text contexts breaking.
-        // The black+red identity still comes through via the brand-red
-        // buttons/links/borders throughout these pages.
-        field: {
-          bg: '#F7F4EE',
-          surface: '#FFFFFF',
-          ink: '#1A1A1A',
-          muted: '#6B7280',
+        blue: {
+          900: '#153378',
+          800: '#1C429E',
+          700: '#2457C5',
+          600: '#3D72E5',
+          100: '#E8F0FF',
+          50: '#F3F7FF',
         },
-        // Severity / status colors — kept distinct from the black/red brand
-        // palette on purpose, since these need to stay visually different
-        // from each other (and from the brand accent) to do their job.
-        severity: {
-          critical: '#E8462F',
-          high: '#F2994A',
-          medium: '#F2C94C',
-          low: '#2BB673',
-          info: '#3E8EDE',
+        coral: {
+          900: '#7C3028',
+          800: '#A53C2F',
+          700: '#C94B3C',
+          600: '#E06254',
+          100: '#FCEBE8',
+          50: '#FDF4F2',
         },
-        brand: {
-          DEFAULT: '#A00C30', // "Embers"
-          dark: '#6E081F',
+        teal: {
+          900: '#0F4D46',
+          800: '#14635B',
+          700: '#19796F',
+          600: '#229E92',
+          100: '#E4F3F0',
+          50: '#F2FAF8',
+        },
+        amber: {
+          900: '#684206',
+          800: '#7F5208',
+          700: '#98620A',
+          600: '#C28A28',
+          100: '#FBF1D8',
+          50: '#FDF9EC',
+        },
+        paper: '#F6F7F5',
+        surface: '#FFFFFF',
+        line: '#DCE2E7',
+        'line-dark': '#2A4055',
+        slate: {
+          900: '#172433',
+          800: '#2A3B4C',
+          700: '#415263',
+          600: '#5D6B78',
+          500: '#788694',
+          400: '#98A4B0',
+          300: '#BDC7D1',
+          200: '#DCE2E7',
+          100: '#EDF1F4',
+          50: '#F6F8F9',
+        },
+        surfaceDark: {
+          DEFAULT: '#142437',
+          panel: '#1B2D40',
+          raised: '#203247',
+          highlight: '#25394C',
+          border: '#33485D',
         },
       },
       fontFamily: {
-        display: ['"Space Grotesk"', 'sans-serif'],
-        body: ['"Inter"', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'monospace'],
+        display: ['Inter', 'system-ui', 'sans-serif'],
+        body: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
+      },
+      borderRadius: {
+        panel: '10px',
+        control: '8px',
+        badge: '4px',
+      },
+      boxShadow: {
+        panel: '0 8px 24px rgba(16, 27, 42, 0.06)',
+        dropdown: '0 12px 32px rgba(16, 27, 42, 0.12)',
+        modal: '0 24px 48px rgba(16, 27, 42, 0.20)',
+        preview: '0 24px 50px rgba(22, 40, 58, 0.18)',
       },
       animation: {
-        pulseBeacon: 'pulseBeacon 1.6s ease-in-out infinite',
+        pulseBeacon: 'pulseBeacon 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       },
       keyframes: {
         pulseBeacon: {
-          '0%, 100%': { opacity: 1, transform: 'scale(1)' },
-          '50%': { opacity: 0.4, transform: 'scale(1.3)' },
+          '0%, 100%': { opacity: '1', transform: 'scale(1)' },
+          '50%': { opacity: '0.35', transform: 'scale(1.2)' },
         },
       },
     },

@@ -1,0 +1,53 @@
+:root {
+  --ink-950: #101B2A;
+  --ink-900: #142437;
+  --ink-800: #1E3044;
+  --ink-700: #2C4055;
+  --ink-600: #3D546C;
+
+  --blue-900: #153378;
+  --blue-800: #1C429E;
+  --blue-700: #2457C5;
+  --blue-600: #3D72E5;
+  --blue-100: #E8F0FF;
+  --blue-50:  #F3F7FF;
+
+  --coral-900: #7C3028;
+  --coral-800: #A53C2F;
+  --coral-700: #C94B3C;
+  --coral-600: #E06254;
+  --coral-100: #FCEBE8;
+  --coral-50:  #FDF4F2;
+
+  --teal-900: #0F4D46;
+  --teal-800: #14635B;
+  --teal-700: #19796F;
+  --teal-600: #229E92;
+  --teal-100: #E4F3F0;
+  --teal-50:  #F2FAF8;
+
+  --amber-900: #684206;
+  --amber-800: #7F5208;
+  --amber-700: #98620A;
+  --amber-600: #C28A28;
+  --amber-100: #FBF1D8;
+  --amber-50:  #FDF9EC;
+
+  --paper: #F6F7F5;
+  --surface: #FFFFFF;
+  --line: #DCE2E7;
+  --line-dark: #2A4055;
+
+  --text: #172433;
+  --text-secondary: #5D6B78;
+  --text-muted: #788694;
+
+  --surface-dark: #142437;
+  --surface-dark-panel: #1B2D40;
+  --surface-dark-raised: #203247;
+  --surface-dark-highlight: #25394C;
+  --surface-dark-border: #33485D;
+
+  --font-ui: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
