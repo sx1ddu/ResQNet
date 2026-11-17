@@ -1,3 +1,4 @@
+import React from 'react';
 import FacilityDashboard from './FacilityDashboard.jsx';
 
 export default function ShelterDashboard() {
