@@ -1,93 +1,78 @@
-// -----------------------------------------------------------------------------
-// IncidentMap.jsx — renders incidents (colored by severity) and facilities
-// (shelters/hospitals) on an OpenStreetMap tile layer via react-leaflet.
-//
-// Known Leaflet + bundler gotcha: the default marker icon images reference
-// relative paths that break under Vite/webpack. We fix this once here by
-// pointing Leaflet at the CDN-hosted marker images instead of local assets.
-// -----------------------------------------------------------------------------
-
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import { SeverityIndicator, TrustIndicator } from './ui/Indicators.jsx';
 
-// Risk colors match the spec exactly: Green (Low), Yellow (Medium),
-// Orange (High), Red (Critical).
 const SEVERITY_COLORS = {
-  low: '#2BB673',
-  medium: '#F2C94C',
-  high: '#F2994A',
-  critical: '#E8462F',
+  critical: '#C94B3C',
+  high: '#98620A',
+  medium: '#C28A28',
+  low: '#19796F',
 };
 
-// A distinct symbol per calamity category, so a glance at the map tells you
-// *what* is happening, not just how bad it is.
-const CATEGORY_EMOJI = {
+const CATEGORY_SYMBOLS = {
   flood: '🌊',
   fire: '🔥',
   earthquake: '🏚️',
   medical: '🚑',
   structural: '🏗️',
-  other: '❗',
+  other: '⚠️',
 };
 
 const FADED_STATUSES = ['resolved', 'rejected', 'merged'];
 
-// Builds a Leaflet divIcon for an incident: colored disc (risk color) with
-// the category emoji inside. Critical + still-active incidents pulse via
-// the same `animate-pulseBeacon` keyframe used by <SeverityBadge>; resolved/
-// rejected/merged incidents fade to a dim grayscale so the map visually
-// "clears" as a disaster is brought under control, without incidents
-// disappearing outright (they stay clickable for the record).
-function incidentIcon(incident) {
+function createIncidentIcon(incident, isSelected = false) {
   const color = SEVERITY_COLORS[incident.severity] || SEVERITY_COLORS.medium;
-  const emoji = CATEGORY_EMOJI[incident.category] || CATEGORY_EMOJI.other;
+  const emoji = CATEGORY_SYMBOLS[incident.category] || CATEGORY_SYMBOLS.other;
   const isFaded = FADED_STATUSES.includes(incident.status);
-  const shouldPulse = incident.severity === 'critical' && !isFaded;
+  const isCritical = incident.severity === 'critical' && !isFaded;
 
   return L.divIcon({
     className: '',
     html: `
-      <div style="position:relative; width:34px; height:34px; display:flex; align-items:center; justify-content:center;
-                  opacity:${isFaded ? 0.35 : 1}; filter:${isFaded ? 'grayscale(1)' : 'none'};">
+      <div style="position:relative; width:36px; height:36px; display:flex; align-items:center; justify-content:center;
+                  opacity:${isFaded ? 0.4 : 1}; filter:${isFaded ? 'grayscale(0.8)' : 'none'}; cursor:pointer;">
         ${
-          shouldPulse
-            ? `<span class="animate-pulseBeacon" style="position:absolute; width:34px; height:34px; border-radius:9999px; background:${color};"></span>`
+          isSelected
+            ? `<span style="position:absolute; width:44px; height:44px; border-radius:9999px; border:2.5px solid #2457C5; background:rgba(36,87,197,0.15); animation:pulse 1.5s infinite;"></span>`
+            : ''
+        }
+        ${
+          isCritical
+            ? `<span style="position:absolute; width:36px; height:36px; border-radius:9999px; background:${color}; opacity:0.35; animation:pulse 1.8s infinite;"></span>`
             : ''
         }
         <span style="position:relative; width:28px; height:28px; border-radius:9999px; background:${color};
-                     border:2px solid white; box-shadow:0 1px 4px rgba(0,0,0,0.4);
-                     display:flex; align-items:center; justify-content:center; font-size:14px;">
+                     border:2.5px solid #FFFFFF; box-shadow:0 3px 8px rgba(16,27,42,0.3);
+                     display:flex; align-items:center; justify-content:center; font-size:13px; color:#FFFFFF;">
           ${emoji}
         </span>
       </div>`,
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+    popupAnchor: [0, -18],
   });
 }
 
-// A distinct square icon for facilities (shelters/hospitals) so they read
-// differently from the circular incident markers at a glance.
-const facilityIcon = (type) =>
-  L.divIcon({
-    className: '',
-    html: `<div style="
-      width:16px;height:16px;border-radius:3px;
-      background:${type === 'hospital' ? '#3E8EDE' : '#9B7EDE'};
-      border:2px solid white; box-shadow:0 0 0 1px rgba(0,0,0,0.3);
-    "></div>`,
-    iconSize: [16, 16],
-    iconAnchor: [8, 8],
-  });
+function createFacilityIcon(type = 'hospital') {
+  const isHospital = type === 'hospital';
+  const color = isHospital ? '#2457C5' : '#19796F';
+  const symbol = isHospital ? '🏥' : '🏠';
 
-// react-leaflet's <MapContainer center> prop only sets the INITIAL view —
-// it deliberately ignores updates after mount (so it doesn't fight a user
-// who's panned around). But incidents/facilities usually load a moment
-// after the map first mounts, so without this helper the map would stay
-// stuck wherever the fallback `center` prop pointed. This component uses
-// the imperative Leaflet map instance to jump to the real data exactly
-// once, the first time any coordinates arrive — never again after that, so
-// it doesn't yank the view out from under someone who's since panned away.
+  return L.divIcon({
+    className: '',
+    html: `
+      <div style="width:24px; height:24px; border-radius:6px; background:${color};
+                  border:2px solid #FFFFFF; box-shadow:0 2px 6px rgba(16,27,42,0.25);
+                  display:flex; align-items:center; justify-content:center; font-size:12px; cursor:pointer;">
+        ${symbol}
+      </div>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -12],
+  });
+}
+
 function AutoCenterOnData({ targetCenter, zoom }) {
   const map = useMap();
   const hasCentered = useRef(false);
@@ -101,27 +86,20 @@ function AutoCenterOnData({ targetCenter, zoom }) {
   return null;
 }
 
-// When the person clicks an incident in the sidebar feed (not on the map
-// itself), this flies the map to that incident's exact location and opens
-// its popup — without this, there'd be no obvious link between "an item in
-// a list" and "a pin somewhere on a map you'd have to hunt for yourself."
 function FlyToIncident({ incidentId, incidents, markerRefs }) {
   const map = useMap();
 
   useEffect(() => {
     if (!incidentId) return;
     const incident = incidents.find((i) => i._id === incidentId);
-    if (!incident) return;
+    if (!incident || !incident.location?.coordinates) return;
 
     const [lng, lat] = incident.location.coordinates;
-    map.flyTo([lat, lng], Math.max(map.getZoom(), 15), { duration: 1 });
+    map.flyTo([lat, lng], Math.max(map.getZoom(), 15), { duration: 0.8 });
 
-    // Open the popup slightly after the fly animation settles, rather than
-    // instantly — opening it mid-flight looks glitchy and can miscalculate
-    // its position since the map is still moving.
     const timer = setTimeout(() => {
       markerRefs.current[incidentId]?.openPopup();
-    }, 650);
+    }, 550);
 
     return () => clearTimeout(timer);
   }, [incidentId, incidents, map, markerRefs]);
@@ -129,38 +107,50 @@ function FlyToIncident({ incidentId, incidents, markerRefs }) {
   return null;
 }
 
-// Averages every incident + facility coordinate into one center point, so
-// the map opens wherever the real data actually is — Mumbai (or anywhere
-// else) only shows up because that's where the seeded demo data happens to
-// be, not because it's hardcoded as "the" location.
 function computeDataCenter(incidents, facilities) {
   const points = [
     ...incidents.map((i) => i.location?.coordinates),
     ...facilities.map((f) => f.location?.coordinates),
-  ].filter(Boolean);
+  ].filter((c) => Array.isArray(c) && c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]));
 
   if (points.length === 0) return null;
 
   const [lngSum, latSum] = points.reduce(([lng, lat], [pLng, pLat]) => [lng + pLng, lat + pLat], [0, 0]);
-  return [latSum / points.length, lngSum / points.length]; // Leaflet wants [lat, lng]
+  return [latSum / points.length, lngSum / points.length];
 }
 
 export default function IncidentMap({
   incidents = [],
   facilities = [],
-  center = [19.076, 72.8777], // fallback ONLY used when there's no data at all yet
+  center = [19.076, 72.8777],
   zoom = 12,
-  height = '100%',
+  height = '480px',
   onIncidentClick,
-  flyToIncidentId = null, // set this to an incident's _id to pan/zoom the map to it
+  flyToIncidentId = null,
+  dark = false,
+  showLegend = true,
 }) {
   const dataCenter = computeDataCenter(incidents, facilities);
   const markerRefs = useRef({});
 
   return (
-    <div style={{ height }} className="overflow-hidden rounded-lg border border-console-border">
-      <MapContainer center={dataCenter || center} zoom={zoom} scrollWheelZoom style={{ width: '100%', height: '100%' }}>
-        {/* OpenStreetMap tiles — free, no API key required. */}
+    <div
+      style={{ height }}
+      className={`relative rounded-panel overflow-hidden border ${
+        dark ? 'border-surfaceDark-border bg-ink-950' : 'border-line bg-paper'
+      }`}
+    >
+      {/* Top Banner Notice */}
+      <div className="absolute top-2.5 left-2.5 z-[1000] px-2.5 py-1 rounded-badge bg-white/90 dark:bg-surfaceDark/90 backdrop-blur-xs text-[10px] font-mono uppercase tracking-wider text-slate-700 dark:text-slate-300 border border-line dark:border-surfaceDark-border shadow-xs">
+        Map View · OpenStreetMap
+      </div>
+
+      <MapContainer
+        center={dataCenter || center}
+        zoom={zoom}
+        scrollWheelZoom
+        style={{ width: '100%', height: '100%' }}
+      >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -169,29 +159,35 @@ export default function IncidentMap({
         <FlyToIncident incidentId={flyToIncidentId} incidents={incidents} markerRefs={markerRefs} />
 
         {incidents.map((incident) => {
+          if (!incident.location?.coordinates || incident.location.coordinates.length < 2) return null;
           const [lng, lat] = incident.location.coordinates;
+          const isSelected = flyToIncidentId === incident._id;
+
           return (
             <Marker
               key={incident._id}
               position={[lat, lng]}
-              icon={incidentIcon(incident)}
+              icon={createIncidentIcon(incident, isSelected)}
               ref={(m) => {
                 if (m) markerRefs.current[incident._id] = m;
               }}
               eventHandlers={{ click: () => onIncidentClick?.(incident) }}
             >
               <Popup>
-                <div className="font-body text-sm">
-                  <p className="font-semibold">{incident.title}</p>
-                  <p className="text-xs uppercase text-gray-500">
-                    {incident.category} · {incident.severity} · {incident.status.replace('_', ' ')}
+                <div className="font-body text-xs text-slate-900 space-y-1.5 p-1 max-w-[240px]">
+                  <div className="flex items-center justify-between gap-1">
+                    <SeverityIndicator severity={incident.severity} />
+                    <span className="font-mono text-[10px] uppercase text-slate-500">{incident.status}</span>
+                  </div>
+                  <h4 className="font-bold text-sm text-ink-950 leading-tight">{incident.title}</h4>
+                  <p className="text-slate-600 line-clamp-2">{incident.description}</p>
+                  <p className="font-mono text-[10px] text-slate-500">
+                    📍 {incident.location?.address || `${lat.toFixed(4)}, ${lng.toFixed(4)}`}
                   </p>
-                  <p className="mt-1">{incident.description}</p>
                   {incident.verification && (
-                    <p className="mt-1 text-xs text-gray-500">
-                      Trust score: <strong>{incident.verification.trustScore}</strong> ·{' '}
-                      {incident.verification.trustState.replace('_', ' ')}
-                    </p>
+                    <div className="pt-1 border-t border-line">
+                      <TrustIndicator verification={incident.verification} />
+                    </div>
                   )}
                 </div>
               </Popup>
@@ -200,22 +196,66 @@ export default function IncidentMap({
         })}
 
         {facilities.map((facility) => {
+          if (!facility.location?.coordinates || facility.location.coordinates.length < 2) return null;
           const [lng, lat] = facility.location.coordinates;
+
           return (
-            <Marker key={facility._id} position={[lat, lng]} icon={facilityIcon(facility.type)}>
+            <Marker
+              key={facility._id}
+              position={[lat, lng]}
+              icon={createFacilityIcon(facility.type)}
+            >
               <Popup>
-                <div className="font-body text-sm">
-                  <p className="font-semibold">{facility.name}</p>
-                  <p className="text-xs uppercase text-gray-500">{facility.type}</p>
-                  <p className="mt-1">
-                    Capacity: {facility.capacityUsed}/{facility.capacityTotal}
+                <div className="font-body text-xs text-slate-900 space-y-1 p-1 max-w-[220px]">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="font-mono text-[10px] font-bold uppercase text-blue-700">
+                      {facility.type}
+                    </span>
+                    <span className="font-mono text-[10px] text-slate-500 uppercase">{facility.status}</span>
+                  </div>
+                  <h4 className="font-bold text-sm text-ink-950">{facility.name}</h4>
+                  <p className="text-slate-600">{facility.location?.address}</p>
+                  <p className="font-mono text-xs font-semibold text-slate-800">
+                    Capacity: {facility.capacityUsed} / {facility.capacityTotal}
                   </p>
+                  {facility.contactPhone && (
+                    <a
+                      href={`tel:${facility.contactPhone}`}
+                      className="inline-block text-[11px] font-mono text-blue-700 hover:underline pt-0.5"
+                    >
+                      📞 {facility.contactPhone}
+                    </a>
+                  )}
                 </div>
               </Popup>
             </Marker>
           );
         })}
       </MapContainer>
+
+      {/* Map Legend */}
+      {showLegend && (
+        <div className="absolute bottom-2.5 left-2.5 z-[1000] p-2.5 rounded-panel bg-white/95 dark:bg-surfaceDark/95 backdrop-blur-xs text-[11px] font-mono border border-line dark:border-surfaceDark-border shadow-dropdown space-y-1">
+          <div className="font-bold text-[10px] uppercase text-slate-500 mb-1">Incident Risk / Facilities</div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-coral-700" /> Critical
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-700" /> High
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-teal-700" /> Low
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-[3px] bg-blue-700" /> Hospital
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-[3px] bg-teal-700" /> Shelter
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

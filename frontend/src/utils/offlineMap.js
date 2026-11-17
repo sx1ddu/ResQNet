@@ -1,15 +1,3 @@
-// -----------------------------------------------------------------------------
-// offlineMap.js — lets a citizen proactively download every map tile within
-// a chosen radius of a point, before connectivity drops. Without this, the
-// service worker (sw.js) only caches tiles you happen to have scrolled past
-// — fine for casual offline resilience, but not enough to guarantee a whole
-// area is available ahead of time, which is the actual ask during a crisis.
-//
-// The math here is the standard "slippy map" tile-coordinate conversion
-// used by every OSM-based tool — converting a lat/lng + zoom level into the
-// specific tile X/Y indices that cover it.
-// -----------------------------------------------------------------------------
-
 const TILE_SIZE_DEG_FACTOR = Math.PI / 180;
 
 function lngToTileX(lng, zoom) {
@@ -23,21 +11,12 @@ function latToTileY(lat, zoom) {
   );
 }
 
-// Rough degrees-per-km at a given latitude — good enough for choosing a
-// download radius, not for precision navigation.
 function kmToDegrees(km, lat) {
-  const latDegrees = km / 111; // ~111km per degree of latitude, everywhere
+  const latDegrees = km / 111;
   const lngDegrees = km / (111 * Math.cos((lat * Math.PI) / 180));
   return { latDegrees, lngDegrees };
 }
 
-/**
- * Returns every tile URL covering a circular-ish area (approximated as a
- * bounding box, which is simpler and slightly over-covers the circle —
- * acceptable since extra edge tiles just mean a little more disk cache,
- * not a correctness problem) around a center point, across a small range
- * of zoom levels useful for both an overview and street-level detail.
- */
 export function computeTileUrls({ lat, lng, radiusKm, minZoom = 12, maxZoom = 15 }) {
   const urls = [];
   const { latDegrees, lngDegrees } = kmToDegrees(radiusKm, lat);
@@ -57,8 +36,6 @@ export function computeTileUrls({ lat, lng, radiusKm, minZoom = 12, maxZoom = 15
 
     for (let x = xMin; x <= xMax; x++) {
       for (let y = yMin; y <= yMax; y++) {
-        // Round-robin across OSM's a/b/c tile subdomains, same as the
-        // TileLayer URL template used elsewhere in the app.
         const subdomain = ['a', 'b', 'c'][(x + y) % 3];
         urls.push(`https://${subdomain}.tile.openstreetmap.org/${z}/${x}/${y}.png`);
       }
@@ -68,11 +45,6 @@ export function computeTileUrls({ lat, lng, radiusKm, minZoom = 12, maxZoom = 15
   return urls;
 }
 
-/**
- * Downloads every tile URL into the service worker's cache, in small
- * batches (to avoid opening hundreds of simultaneous connections, which
- * some browsers/networks throttle hard), reporting progress as it goes.
- */
 export async function downloadTilesForOfflineUse({ lat, lng, radiusKm }, onProgress) {
   if (!('caches' in window)) {
     throw new Error('This browser does not support offline caching.');
@@ -89,15 +61,10 @@ export async function downloadTilesForOfflineUse({ lat, lng, radiusKm }, onProgr
     await Promise.all(
       batch.map(async (url) => {
         try {
-          // no-cors: OSM's tile server doesn't send CORS headers, so a
-          // normal cross-origin fetch would be rejected outright. The
-          // response is "opaque" (we can't read it), but the browser can
-          // still store and later serve it from cache correctly.
           const response = await fetch(url, { mode: 'no-cors' });
           await cache.put(url, response);
         } catch {
-          // A single failed tile (e.g. a momentary network blip) shouldn't
-          // abort the whole download — just skip it and move on.
+          // Skip momentary tile error
         }
         completed += 1;
         onProgress?.(completed, urls.length);
