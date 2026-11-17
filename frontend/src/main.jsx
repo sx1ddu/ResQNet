@@ -8,13 +8,8 @@ import { SocketProvider } from './context/SocketContext.jsx';
 import { registerMapServiceWorker } from './utils/offlineMap.js';
 import './styles/index.css';
 
-// Registers the service worker that caches map tiles for offline use during
-// connectivity loss (see utils/offlineMap.js and public/sw.js). Safe to call
-// even in browsers without service worker support — it just no-ops there.
 registerMapServiceWorker();
 
-// A single shared React Query client for the whole app — handles caching,
-// deduping, and background refetching of every GET request we make.
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
