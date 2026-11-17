@@ -1,10 +1,13 @@
+import React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import SeverityBadge from './SeverityBadge.jsx';
-import TrustBadge from './TrustBadge.jsx';
 import api from '../api/axiosClient.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { SeverityIndicator, TrustIndicator, StatusIndicator } from './ui/Indicators.jsx';
+import Button from './ui/Button.jsx';
+import { IconCheck, IconX, IconSparkles } from './ui/Icons.jsx';
 
 function formatTime(isoString) {
+  if (!isoString) return '';
   const date = new Date(isoString);
   return date.toLocaleString(undefined, {
     month: 'short',
@@ -16,18 +19,15 @@ function formatTime(isoString) {
 
 const AUTHORITY_ROLES = ['eoc', 'admin', 'rescue_team'];
 
-export default function IncidentCard({ incident, onClick, actions }) {
+export default function IncidentCard({
+  incident,
+  onClick,
+  actions,
+  dark = false,
+}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Patches the single updated incident directly into every cached incidents
-  // list (['incidents','all'], ['incidents','mine'], etc — setQueriesData
-  // matches any query key starting with 'incidents') instead of invalidating
-  // and re-fetching the whole list. The server already sends back the full,
-  // authoritative updated incident in its response — refetching to get the
-  // same data again was pure wasted latency, which is what made
-  // confirm/dispute/verify feel slow (a write + a full list re-read instead
-  // of just the write).
   const patchIncidentInCache = (updatedIncident) => {
     queryClient.setQueriesData({ queryKey: ['incidents'] }, (old) => {
       if (!old?.incidents) return old;
@@ -39,7 +39,8 @@ export default function IncidentCard({ incident, onClick, actions }) {
   };
 
   const crowdVerify = useMutation({
-    mutationFn: async (vote) => (await api.post(`/incidents/${incident._id}/crowd-verify`, { vote })).data,
+    mutationFn: async (vote) =>
+      (await api.post(`/incidents/${incident._id}/crowd-verify`, { vote })).data,
     onSuccess: (data) => patchIncidentInCache(data.incident),
   });
 
@@ -49,121 +50,177 @@ export default function IncidentCard({ incident, onClick, actions }) {
     onSuccess: (data) => patchIncidentInCache(data.incident),
   });
 
-  const isOwnReport = incident.reportedBy?._id === user?._id || incident.reportedBy === user?._id;
-  const myVote = incident.crowdVotes?.find((v) => (v.user?._id || v.user) === user?._id)?.vote;
-  const canActAsAuthority = AUTHORITY_ROLES.includes(user?.role) &&
-    (user?.role !== 'rescue_team' || incident.assignedTeam?._id === user?._id);
+  const isOwnReport =
+    incident.reportedBy?._id === user?._id || incident.reportedBy === user?._id;
+  const myVote = incident.crowdVotes?.find(
+    (v) => (v.user?._id || v.user) === user?._id
+  )?.vote;
+  const canActAsAuthority =
+    AUTHORITY_ROLES.includes(user?.role) &&
+    (user?.role !== 'rescue_team' ||
+      incident.assignedTeam?._id === user?._id ||
+      incident.assignedTeam === user?._id);
   const alreadyDecided = incident.authorityVerification?.status !== 'pending';
 
   return (
     <div
       onClick={onClick}
-      className="cursor-pointer rounded-lg border border-console-border bg-console-surface p-4 transition hover:border-brand/60"
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={(e) => {
+        if (onClick && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className={`rounded-panel p-4.5 border transition-all duration-150 ${
+        dark
+          ? 'bg-surfaceDark-panel border-surfaceDark-border hover:border-slate-500 text-white'
+          : 'bg-white border-line hover:border-slate-300 text-slate-900 shadow-panel'
+      }`}
     >
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="font-display text-sm font-medium text-console-mist">{incident.title}</p>
-          <p className="mt-1 line-clamp-2 text-xs text-console-muted">{incident.description}</p>
+        <div className="min-w-0 flex-1">
+          <h3
+            className={`font-bold text-sm sm:text-base leading-snug ${
+              dark ? 'text-white' : 'text-ink-950'
+            }`}
+          >
+            {incident.title}
+          </h3>
+          <p
+            className={`mt-1 text-xs line-clamp-2 leading-relaxed ${
+              dark ? 'text-slate-400' : 'text-slate-600'
+            }`}
+          >
+            {incident.description}
+          </p>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <SeverityBadge severity={incident.severity} />
-          <TrustBadge verification={incident.verification} />
+
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <SeverityIndicator severity={incident.severity} dark={dark} />
+          {incident.verification && (
+            <TrustIndicator verification={incident.verification} dark={dark} />
+          )}
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-3 font-mono text-[11px] text-console-muted">
-        <span className="rounded border border-console-border px-1.5 py-0.5 uppercase">{incident.status}</span>
-        <span className="rounded border border-console-border px-1.5 py-0.5 uppercase">{incident.category}</span>
-        <span>{incident.location?.address || 'Location on file'}</span>
-        <span className="ml-auto">{formatTime(incident.createdAt)}</span>
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-mono text-slate-500">
+        <StatusIndicator status={incident.status} dark={dark} />
+        <span className="px-1.5 py-0.5 rounded border border-line dark:border-surfaceDark-border uppercase">
+          {incident.category}
+        </span>
+        <span className="truncate max-w-[200px]">
+          📍 {incident.location?.address || 'Location on file'}
+        </span>
+        <span className="ml-auto shrink-0">{formatTime(incident.createdAt)}</span>
       </div>
 
       {incident.aiAnalysis?.summary && (
-        <p className="mt-2 border-t border-console-border pt-2 text-xs italic text-console-muted">
-          <span className="font-mono not-italic text-severity-info">AI ·</span> {incident.aiAnalysis.summary}
-        </p>
-      )}
-
-      {/* AI resource recommendation — an internal dispatch checklist for ops
-          staff. Deliberately hidden from citizens: it's not useful to the
-          person who filed the report, and a raw "3 ambulances, 15 min ETA"
-          readout can read as alarming rather than reassuring. Citizens see
-          <EmergencyContacts> instead (see CitizenDashboard.jsx). */}
-      {canActAsAuthority && incident.aiAnalysis?.recommendedResources?.length > 0 && (
-        <div className="mt-2 rounded-md border border-severity-info/30 bg-severity-info/5 px-3 py-2">
-          <p className="font-mono text-[10px] uppercase tracking-wide text-severity-info">Recommended deployment</p>
-          <ul className="mt-1 space-y-0.5">
-            {incident.aiAnalysis.recommendedResources.map((r) => (
-              <li key={r.name} className="flex items-center gap-1.5 text-xs text-console-mist">
-                <span className="text-severity-low">✓</span>
-                {r.qty > 1 ? `${r.qty}× ${r.name}` : r.name}
-              </li>
-            ))}
-          </ul>
-          {incident.aiAnalysis.etaMinutes && (
-            <p className="mt-1 font-mono text-[10px] text-console-muted">
-              Estimated response: <span className="text-console-mist">{incident.aiAnalysis.etaMinutes} minutes</span>
-            </p>
-          )}
+        <div
+          className={`mt-2.5 pt-2 border-t text-xs italic ${
+            dark
+              ? 'border-surfaceDark-border text-slate-400'
+              : 'border-line text-slate-600'
+          }`}
+        >
+          <span className="font-mono not-italic font-bold text-blue-700 dark:text-blue-400 mr-1.5">
+            AI Summary:
+          </span>
+          {incident.aiAnalysis.summary}
         </div>
       )}
 
-      {/* Crowd verification — anyone except the original reporter can weigh in. */}
+      {/* Crowd Verification voting */}
       {!isOwnReport && incident.status !== 'rejected' && (
-        <div className="mt-3 flex items-center gap-2 border-t border-console-border pt-2" onClick={(e) => e.stopPropagation()}>
-          <span className="font-mono text-[10px] uppercase text-console-muted">Does this look real?</span>
-          <button
-            onClick={() => crowdVerify.mutate('confirm')}
-            disabled={crowdVerify.isPending}
-            className={`rounded border px-2 py-0.5 font-mono text-[10px] uppercase ${
-              myVote === 'confirm'
-                ? 'border-severity-low bg-severity-low/10 text-severity-low'
-                : 'border-console-border text-console-muted hover:text-severity-low'
+        <div
+          className={`mt-3 pt-2.5 border-t flex items-center justify-between gap-2 flex-wrap text-xs ${
+            dark ? 'border-surfaceDark-border' : 'border-line'
+          }`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span
+            className={`font-mono text-[11px] uppercase ${
+              dark ? 'text-slate-400' : 'text-slate-600'
             }`}
           >
-            ✓ Confirm
-          </button>
-          <button
-            onClick={() => crowdVerify.mutate('dispute')}
-            disabled={crowdVerify.isPending}
-            className={`rounded border px-2 py-0.5 font-mono text-[10px] uppercase ${
-              myVote === 'dispute'
-                ? 'border-severity-critical bg-severity-critical/10 text-severity-critical'
-                : 'border-console-border text-console-muted hover:text-severity-critical'
-            }`}
-          >
-            ✗ Dispute
-          </button>
+            Corroborate this report?
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => crowdVerify.mutate('confirm')}
+              disabled={crowdVerify.isPending}
+              className={`px-2.5 py-1 rounded-control text-xs font-mono font-semibold border transition-colors flex items-center gap-1 ${
+                myVote === 'confirm'
+                  ? 'bg-teal-700 text-white border-teal-700'
+                  : dark
+                  ? 'border-surfaceDark-border text-teal-300 hover:bg-surfaceDark-raised'
+                  : 'border-line text-teal-800 hover:bg-teal-50'
+              }`}
+            >
+              <IconCheck width={12} height={12} /> Confirm
+            </button>
+            <button
+              onClick={() => crowdVerify.mutate('dispute')}
+              disabled={crowdVerify.isPending}
+              className={`px-2.5 py-1 rounded-control text-xs font-mono font-semibold border transition-colors flex items-center gap-1 ${
+                myVote === 'dispute'
+                  ? 'bg-coral-700 text-white border-coral-700'
+                  : dark
+                  ? 'border-surfaceDark-border text-coral-300 hover:bg-surfaceDark-raised'
+                  : 'border-line text-coral-800 hover:bg-coral-50'
+              }`}
+            >
+              <IconX width={12} height={12} /> Dispute
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Authority verification — EOC/rescue/admin only, one-time decision. */}
+      {/* Authority Quick Verification (for EOC/rescue) */}
       {canActAsAuthority && !alreadyDecided && (
-        <div className="mt-2 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <span className="font-mono text-[10px] uppercase text-console-muted">Authority review:</span>
-          <button
-            onClick={() => authorityVerify.mutate('confirmed')}
-            disabled={authorityVerify.isPending}
-            className="rounded border border-severity-info px-2 py-0.5 font-mono text-[10px] uppercase text-severity-info hover:bg-severity-info/10"
-          >
-            Verify
-          </button>
-          <button
-            onClick={() => authorityVerify.mutate('rejected')}
-            disabled={authorityVerify.isPending}
-            className="rounded border border-severity-critical px-2 py-0.5 font-mono text-[10px] uppercase text-severity-critical hover:bg-severity-critical/10"
-          >
-            Reject as fake
-          </button>
+        <div
+          className={`mt-2.5 pt-2 border-t flex items-center justify-between gap-2 flex-wrap ${
+            dark ? 'border-surfaceDark-border' : 'border-line'
+          }`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span className="font-mono text-[11px] uppercase text-slate-400">
+            Authority Review:
+          </span>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() => authorityVerify.mutate('confirmed')}
+              loading={authorityVerify.isPending}
+              icon={<IconCheck width={12} height={12} />}
+            >
+              Confirm
+            </Button>
+            <Button
+              size="sm"
+              variant="critical"
+              onClick={() => authorityVerify.mutate('rejected')}
+              loading={authorityVerify.isPending}
+              icon={<IconX width={12} height={12} />}
+            >
+              Reject
+            </Button>
+          </div>
         </div>
       )}
-      {alreadyDecided && (
-        <p className="mt-2 font-mono text-[10px] uppercase text-console-muted">
-          Authority: {incident.authorityVerification.status}
-        </p>
-      )}
 
-      {actions && <div className="mt-3 flex gap-2" onClick={(e) => e.stopPropagation()}>{actions}</div>}
+      {actions && (
+        <div
+          className={`mt-3 pt-2.5 border-t flex gap-2 ${
+            dark ? 'border-surfaceDark-border' : 'border-line'
+          }`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {actions}
+        </div>
+      )}
     </div>
   );
 }
