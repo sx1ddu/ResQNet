@@ -1,45 +1,64 @@
-// -----------------------------------------------------------------------------
-// EmergencyContacts.jsx — shown to citizens instead of the internal "AI
-// resource recommendation" dispatch checklist (see IncidentCard.jsx). A
-// citizen who just filed a report doesn't need to know "3 ambulances were
-// dispatched" — they need to know who to call right now if things escalate
-// before help arrives.
-//
-// These are standard national emergency helpline numbers (India) — static
-// and always available, deliberately not dependent on the network or the
-// AI service, since this is exactly the information a citizen needs most
-// when connectivity is unreliable.
-// -----------------------------------------------------------------------------
+import React from 'react';
+import { IconPhone } from './ui/Icons.jsx';
 
 const CONTACTS = [
-  { label: 'National Emergency Number', number: '112' },
-  { label: 'Police', number: '100' },
-  { label: 'Fire Brigade', number: '101' },
-  { label: 'Ambulance', number: '108' },
-  { label: 'Disaster Management Helpline (NDMA)', number: '1078' },
-  { label: 'Women Helpline', number: '1091' },
+  { label: 'National Emergency Helpline', number: '112', desc: 'All emergencies (Police, Fire, Medical)' },
+  { label: 'Ambulance & Medical Emergency', number: '108', desc: 'Emergency trauma & medical response' },
+  { label: 'Fire Service', number: '101', desc: 'Fire hazards & structural collapse' },
+  { label: 'Police Control Room', number: '100', desc: 'Security & crowd control' },
+  { label: 'Disaster Management Helpline', number: '1078', desc: 'National Disaster Management Authority (NDMA)' },
+  { label: 'Women Helpline', number: '1091', desc: 'Safety & emergency assistance' },
 ];
 
-export default function EmergencyContacts() {
+export default function EmergencyContacts({ dark = false }) {
   return (
-    <div className="rounded-lg border border-console-border bg-console-surface p-4">
-      <p className="font-mono text-xs uppercase tracking-wide text-console-muted">Emergency contacts</p>
-      <p className="mt-1 text-xs text-console-muted">
-        If the situation is life-threatening, call directly — don't wait for a dispatch response.
+    <div
+      className={`rounded-panel p-5 border ${
+        dark
+          ? 'bg-surfaceDark-panel border-surfaceDark-border text-white'
+          : 'bg-white border-line text-slate-900 shadow-panel'
+      }`}
+    >
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="w-6 h-6 rounded-control bg-coral-100 text-coral-700 flex items-center justify-center">
+          <IconPhone width={14} height={14} />
+        </span>
+        <h3 className="text-sm font-bold uppercase tracking-wide font-mono">
+          Immediate Emergency Helplines (India)
+        </h3>
+      </div>
+      <p
+        className={`text-xs mb-4 leading-relaxed ${
+          dark ? 'text-slate-400' : 'text-slate-600'
+        }`}
+      >
+        For life-threatening emergencies, call directly. Do not wait for an app status update.
       </p>
-      <ul className="mt-3 space-y-2">
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {CONTACTS.map((c) => (
-          <li key={c.number} className="flex items-center justify-between gap-2">
-            <span className="text-sm text-console-mist">{c.label}</span>
+          <div
+            key={c.number}
+            className={`p-3 rounded-control border flex items-center justify-between gap-3 ${
+              dark
+                ? 'bg-surfaceDark-raised border-surfaceDark-border hover:border-slate-500'
+                : 'bg-slate-50/70 border-line hover:border-blue-700/50'
+            } transition-colors`}
+          >
+            <div className="min-w-0">
+              <p className="text-xs font-semibold truncate">{c.label}</p>
+              <p className="text-[11px] text-slate-400 truncate">{c.desc}</p>
+            </div>
             <a
               href={`tel:${c.number}`}
-              className="rounded-md border border-brand px-3 py-1 font-mono text-sm font-semibold text-brand hover:bg-brand hover:text-white"
+              className="px-3 py-1.5 rounded-control bg-coral-700 hover:bg-coral-800 text-white font-mono font-bold text-xs tracking-wider shrink-0 transition-colors shadow-xs"
+              aria-label={`Call ${c.label} on ${c.number}`}
             >
               {c.number}
             </a>
-          </li>
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }
